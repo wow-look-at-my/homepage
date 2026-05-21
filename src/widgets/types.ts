@@ -36,7 +36,6 @@ export interface Widget {
   name: string;
   description?: string;
   definition: WidgetDefinition;
-  component: ComponentType<{ service: WidgetServiceProps }>;
   aliases?: string[];
 }
 

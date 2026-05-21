@@ -4,13 +4,21 @@ import { useTranslation } from "next-i18next";
 
 import useWidgetAPI from "utils/proxy/use-widget-api";
 
-export default function Component({ service }) {
+import type { UptimeKumaHeartbeat, UptimeKumaStatusPage } from "./types";
+
+export default function Component({ service }: { service: { widget: Record<string, unknown>; [key: string]: unknown } }) {
   const { t } = useTranslation();
 
   const { widget } = service;
 
-  const { data: statusData, error: statusError } = useWidgetAPI(widget, "status_page");
-  const { data: heartbeatData, error: heartbeatError } = useWidgetAPI(widget, "heartbeat");
+  const { data: statusData, error: statusError } = useWidgetAPI(widget, "status_page") as {
+    data: UptimeKumaStatusPage | undefined;
+    error: unknown;
+  };
+  const { data: heartbeatData, error: heartbeatError } = useWidgetAPI(widget, "heartbeat") as {
+    data: UptimeKumaHeartbeat | undefined;
+    error: unknown;
+  };
 
   if (statusError || heartbeatError) {
     return <Container service={service} error={statusError ?? heartbeatError} />;
@@ -38,12 +46,11 @@ export default function Component({ service }) {
     }
   });
 
-  // Adapted from https://github.com/bastienwirtz/homer/blob/b7cd8f9482e6836a96b354b11595b03b9c3d67cd/src/components/services/UptimeKuma.vue#L105
   const uptimeList = Object.values(heartbeatData.uptimeList);
   const percent = uptimeList.reduce((a, b) => a + b, 0) / uptimeList.length || 0;
   const uptime = (percent * 100).toFixed(1);
   const incidentTime = statusData.incident
-    ? Math.abs(new Date(statusData.incident?.createdDate) - new Date()) / 1000 / (60 * 60)
+    ? Math.abs(new Date(statusData.incident.createdDate).getTime() - Date.now()) / 1000 / (60 * 60)
     : null;
 
   return (

@@ -1,7 +1,6 @@
 import dynamic from "next/dynamic";
 
 const components = {
-  adguard: dynamic(() => import("./adguard/component")),
   apcups: dynamic(() => import("./apcups/component")),
   arcane: dynamic(() => import("./arcane/component")),
   argocd: dynamic(() => import("./argocd/component")),
@@ -127,7 +126,6 @@ const components = {
   scrutiny: dynamic(() => import("./scrutiny/component")),
   seerr: dynamic(() => import("./seerr/component")),
   slskd: dynamic(() => import("./slskd/component")),
-  sonarr: dynamic(() => import("./sonarr/component")),
   sparkyfitness: dynamic(() => import("./sparkyfitness/component")),
   speedtest: dynamic(() => import("./speedtest/component")),
   spoolman: dynamic(() => import("./spoolman/component")),
@@ -151,7 +149,6 @@ const components = {
   unifi_drive: dynamic(() => import("./unifi_drive/component")),
   unmanic: dynamic(() => import("./unmanic/component")),
   unraid: dynamic(() => import("./unraid/component")),
-  uptimekuma: dynamic(() => import("./uptimekuma/component")),
   uptimerobot: dynamic(() => import("./uptimerobot/component")),
   urbackup: dynamic(() => import("./urbackup/component")),
   vikunja: dynamic(() => import("./vikunja/component")),

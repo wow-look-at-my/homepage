@@ -11,7 +11,7 @@ vi.mock("utils/proxy/use-widget-api", () => ({ default: useWidgetAPI }));
 
 import Component from "./component";
 
-describe("widgets/uptimekuma/component", () => {
+describe("widgets/plugins/uptimekuma/component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -31,7 +31,7 @@ describe("widgets/uptimekuma/component", () => {
   });
 
   it("computes site up/down and uptime percent when loaded (no incident)", () => {
-    useWidgetAPI.mockImplementation((_widget, endpoint) => {
+    useWidgetAPI.mockImplementation((_widget: unknown, endpoint: string) => {
       if (endpoint === "status_page") return { data: { incident: null }, error: undefined };
       if (endpoint === "heartbeat") {
         return {
@@ -54,7 +54,6 @@ describe("widgets/uptimekuma/component", () => {
 
     expectBlockValue(container, "uptimekuma.up", 1);
     expectBlockValue(container, "uptimekuma.down", 1);
-    // avg = (0.5 + 1) / 2 = 0.75 => "75.0"
     expectBlockValue(container, "uptimekuma.uptime", "75.0");
   });
 });

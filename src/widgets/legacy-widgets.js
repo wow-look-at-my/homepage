@@ -1,4 +1,3 @@
-import adguard from "./adguard/widget";
 import apcups from "./apcups/widget";
 import arcane from "./arcane/widget";
 import argocd from "./argocd/widget";
@@ -117,7 +116,6 @@ import sabnzbd from "./sabnzbd/widget";
 import scrutiny from "./scrutiny/widget";
 import seerr from "./seerr/widget";
 import slskd from "./slskd/widget";
-import sonarr from "./sonarr/widget";
 import sparkyfitness from "./sparkyfitness/widget";
 import speedtest from "./speedtest/widget";
 import spoolman from "./spoolman/widget";
@@ -141,7 +139,6 @@ import unifi from "./unifi/widget";
 import unifi_drive from "./unifi_drive/widget";
 import unmanic from "./unmanic/widget";
 import unraid from "./unraid/widget";
-import uptimekuma from "./uptimekuma/widget";
 import uptimerobot from "./uptimerobot/widget";
 import urbackup from "./urbackup/widget";
 import vikunja from "./vikunja/widget";
@@ -154,7 +151,6 @@ import yourspotify from "./yourspotify/widget";
 import zabbix from "./zabbix/widget";
 
 const widgets = {
-  adguard,
   apcups,
   arcane,
   argocd,
@@ -277,7 +273,6 @@ const widgets = {
   scrutiny,
   seerr,
   slskd,
-  sonarr,
   sparkyfitness,
   speedtest,
   spoolman,
@@ -302,7 +297,6 @@ const widgets = {
   unifi_drive,
   unmanic,
   unraid,
-  uptimekuma,
   uptimerobot,
   urbackup,
   vikunja,

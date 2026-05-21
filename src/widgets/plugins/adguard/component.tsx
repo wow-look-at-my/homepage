@@ -4,12 +4,17 @@ import { useTranslation } from "next-i18next";
 
 import useWidgetAPI from "utils/proxy/use-widget-api";
 
-export default function Component({ service }) {
+import type { AdguardStats } from "./types";
+
+export default function Component({ service }: { service: { widget: { type: string }; [key: string]: unknown } }) {
   const { t } = useTranslation();
 
   const { widget } = service;
 
-  const { data: adguardData, error: adguardError } = useWidgetAPI(widget, "stats");
+  const { data: adguardData, error: adguardError } = useWidgetAPI(widget, "stats") as {
+    data: AdguardStats | undefined;
+    error: unknown;
+  };
 
   if (adguardError) {
     return <Container service={service} error={adguardError} />;
