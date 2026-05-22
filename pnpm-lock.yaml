@@ -23,6 +23,9 @@ importers:
       dockerode:
         specifier: ^4.0.10
         version: 4.0.10
+      esbuild:
+        specifier: ^0.28.0
+        version: 0.28.0
       follow-redirects:
         specifier: ^1.16.0
         version: 1.16.0

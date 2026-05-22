@@ -2,20 +2,120 @@
 
 ## How Plugins Work
 
-Homepage auto-discovers widget plugins from `src/widgets/plugins/`. Each plugin is a folder containing a widget definition and a React component. When you run `pnpm dev` or `pnpm build`, the build system picks up every plugin automatically -- no registration in any central file.
+Homepage supports two kinds of widget plugins:
 
-There are two parts to every widget:
+1. **Built-in plugins** (`src/widgets/plugins/`) -- bundled by webpack at build time. Best for development and first-party contributions. Auto-discovered, hot-reloadable, fully typed.
 
-1. **Server-side definition** (`index.ts`) -- tells the proxy layer how to reach the upstream API, what endpoints are allowed, and how to transform responses. Loaded at runtime via filesystem scan.
-2. **Client-side component** (`component.tsx`) -- the React UI that renders the widget. Loaded at build time via webpack.
+2. **External plugins** (`HOMEPAGE_PLUGINS_DIR`) -- loaded at runtime without rebuilding the app. Drop a folder containing a widget definition and a component into any directory, point the env var at it, restart the server. The server compiles the component with esbuild on startup and serves it to the browser dynamically.
 
-Because the component is bundled by webpack, **plugins must be present in the source tree when the app is built**. You cannot drop a plugin into a running Homepage instance and have its UI appear without a rebuild. The proxy layer would work, but the browser would show "missing widget type" because webpack never bundled the component.
+Both kinds use the same plugin format: an `index.ts` (or `.js`) with the widget definition and a `component.tsx` (or `.jsx`) with the React UI.
 
-## Adding a Plugin Without Modifying Core Files
+## External Plugins (No Rebuild)
 
-The key guarantee: you never edit `widgets.js`, `components.js`, or any other core file. You create a folder, build, and run. That's it.
+Set the `HOMEPAGE_PLUGINS_DIR` environment variable to a directory containing your plugin folders. On server startup, Homepage:
 
-### Path 1: Source checkout (recommended for development)
+1. Scans the directory for plugin folders
+2. Loads each `index.ts`/`.js` to register the proxy definition (API template, mappings)
+3. Compiles each `component.tsx`/`.jsx` with esbuild into a browser-loadable bundle
+4. Serves the compiled bundles via `/api/plugins/{name}`
+5. The browser loads and renders them on demand
+
+No rebuild. No touching core files. No Docker image customization.
+
+### Quick start
+
+```bash
+# Create a plugin directory anywhere on the filesystem
+mkdir -p /opt/homepage-plugins/my-service
+
+# Write the widget definition
+cat > /opt/homepage-plugins/my-service/index.js << 'PLUGIN'
+module.exports = {
+  id: "my-service",
+  name: "My Service",
+  definition: {
+    api: "{url}/api/{endpoint}",
+    mappings: {
+      stats: { endpoint: "stats" },
+    },
+  },
+};
+PLUGIN
+
+# Write the component
+cat > /opt/homepage-plugins/my-service/component.jsx << 'PLUGIN'
+import React from "react";
+import { useTranslation } from "next-i18next";
+import Block from "components/services/widget/block";
+import Container from "components/services/widget/container";
+import useWidgetAPI from "utils/proxy/use-widget-api";
+
+export default function Component({ service }) {
+  const { t } = useTranslation();
+  const { widget } = service;
+  const { data, error } = useWidgetAPI(widget, "stats");
+
+  if (error) return <Container service={service} error={error} />;
+  if (!data) return <Container service={service}><Block label="my-service.status" /></Container>;
+
+  return (
+    <Container service={service}>
+      <Block label="my-service.status" value={t("common.number", { value: data.total })} />
+    </Container>
+  );
+}
+PLUGIN
+
+# Point Homepage at the plugins directory and restart
+export HOMEPAGE_PLUGINS_DIR=/opt/homepage-plugins
+# restart your Homepage server
+```
+
+Add the widget to `services.yaml`:
+
+```yaml
+- Services:
+    - My Service:
+        widget:
+          type: my-service
+          url: http://localhost:8080
+```
+
+The widget appears immediately after restart. No rebuild needed.
+
+### Docker with volume mount
+
+```bash
+docker run -p 3000:3000 \
+  -v /opt/homepage-plugins:/external-plugins \
+  -e HOMEPAGE_PLUGINS_DIR=/external-plugins \
+  ghcr.io/gethomepage/homepage:latest
+```
+
+### Available imports in external plugins
+
+External plugin components can import these shared modules (provided by Homepage at runtime):
+
+| Import path | What you get |
+|-------------|-------------|
+| `react` | React, hooks (useState, useEffect, etc.) |
+| `next-i18next` | `{ useTranslation }` |
+| `components/services/widget/block` | Block component (default export) |
+| `components/services/widget/container` | Container component (default export) |
+| `utils/proxy/use-widget-api` | useWidgetAPI hook (default export) |
+| `swr` | useSWR hook (default export) |
+
+Any other imports must be self-contained within your plugin folder. You cannot import from arbitrary Homepage internals.
+
+### Limitations of external plugins
+
+- Requires a server restart to pick up new or changed plugins (no hot reload)
+- Only the shared modules listed above are available as imports
+- Complex plugins that need internal components (e.g., QueueEntry) must be built-in plugins instead
+
+## Built-in Plugins (Source Checkout)
+
+For development and first-party contributions, use the built-in plugin path:
 
 ```bash
 # Clone the repo
@@ -31,32 +131,9 @@ pnpm create-widget my-service
 pnpm dev
 ```
 
-The plugin is live immediately. Hot reload works. No core files touched.
+The plugin is live immediately. Hot reload works. No core files touched. Full access to all internal modules.
 
-### Path 2: Custom Docker image (recommended for deployment)
-
-If you run Homepage via Docker and want to add a custom widget to your deployment:
-
-```dockerfile
-FROM ghcr.io/gethomepage/homepage:latest AS base
-
-# Copy your plugin into the plugins directory
-COPY my-service-plugin/ /app/src/widgets/plugins/my-service/
-
-# Rebuild with your plugin included
-RUN pnpm build
-```
-
-Build and run your custom image:
-
-```bash
-docker build -t my-homepage .
-docker run -p 3000:3000 my-homepage
-```
-
-Your plugin is baked into the image. The core Homepage source is untouched -- your plugin sits alongside it in the plugins directory.
-
-### Path 3: No code at all -- `customapi`
+## No Code Option -- `customapi`
 
 If you don't need a custom UI and just want to display fields from an arbitrary API, the built-in `customapi` widget handles this entirely through YAML configuration:
 
@@ -415,12 +492,13 @@ Three built-in plugins demonstrate increasing complexity:
 
 Read these to understand the pattern before writing your own.
 
-## What Requires a Rebuild
+## What Requires What
 
-| Action | Rebuild needed? |
-|--------|----------------|
-| Add a plugin to `src/widgets/plugins/` | Yes (`pnpm build` or `pnpm dev`) |
-| Change a plugin's component | No (hot reload in `pnpm dev`) |
-| Change a plugin's definition | Yes (server restart or rebuild) |
-| Change `services.yaml` | No (reloaded at runtime) |
-| Use `customapi` widget | No (YAML-only, no code) |
+| Action | Rebuild? | Restart? |
+|--------|----------|----------|
+| Add a built-in plugin to `src/widgets/plugins/` | Yes | -- |
+| Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No |
+| Add an external plugin to `HOMEPAGE_PLUGINS_DIR` | No | Yes |
+| Change an external plugin's files | No | Yes |
+| Change `services.yaml` | No | No |
+| Use `customapi` widget | No | No |
