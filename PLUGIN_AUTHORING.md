@@ -1,20 +1,81 @@
 # Widget Plugin Authoring Guide
 
-This guide covers how to create a new widget plugin for Homepage.
+## How Plugins Work
 
-## Quick Start
+Homepage auto-discovers widget plugins from `src/widgets/plugins/`. Each plugin is a folder containing a widget definition and a React component. When you run `pnpm dev` or `pnpm build`, the build system picks up every plugin automatically -- no registration in any central file.
+
+There are two parts to every widget:
+
+1. **Server-side definition** (`index.ts`) -- tells the proxy layer how to reach the upstream API, what endpoints are allowed, and how to transform responses. Loaded at runtime via filesystem scan.
+2. **Client-side component** (`component.tsx`) -- the React UI that renders the widget. Loaded at build time via webpack.
+
+Because the component is bundled by webpack, **plugins must be present in the source tree when the app is built**. You cannot drop a plugin into a running Homepage instance and have its UI appear without a rebuild. The proxy layer would work, but the browser would show "missing widget type" because webpack never bundled the component.
+
+## Adding a Plugin Without Modifying Core Files
+
+The key guarantee: you never edit `widgets.js`, `components.js`, or any other core file. You create a folder, build, and run. That's it.
+
+### Path 1: Source checkout (recommended for development)
 
 ```bash
+# Clone the repo
+git clone https://github.com/gethomepage/homepage.git
+cd homepage
+
+# Scaffold a new plugin
+pnpm install
 pnpm create-widget my-service
+
+# Edit the generated files in src/widgets/plugins/my-service/
+# Then run
+pnpm dev
 ```
 
-This scaffolds a new plugin at `src/widgets/plugins/my-service/` with three files:
+The plugin is live immediately. Hot reload works. No core files touched.
 
-- `index.ts` -- widget definition (API template, proxy handler, endpoint mappings)
-- `component.tsx` -- React component that renders the widget UI
-- `types.ts` -- TypeScript interfaces for API response data
+### Path 2: Custom Docker image (recommended for deployment)
 
-The plugin is auto-discovered at build/dev time -- no registration in any central file required.
+If you run Homepage via Docker and want to add a custom widget to your deployment:
+
+```dockerfile
+FROM ghcr.io/gethomepage/homepage:latest AS base
+
+# Copy your plugin into the plugins directory
+COPY my-service-plugin/ /app/src/widgets/plugins/my-service/
+
+# Rebuild with your plugin included
+RUN pnpm build
+```
+
+Build and run your custom image:
+
+```bash
+docker build -t my-homepage .
+docker run -p 3000:3000 my-homepage
+```
+
+Your plugin is baked into the image. The core Homepage source is untouched -- your plugin sits alongside it in the plugins directory.
+
+### Path 3: No code at all -- `customapi`
+
+If you don't need a custom UI and just want to display fields from an arbitrary API, the built-in `customapi` widget handles this entirely through YAML configuration:
+
+```yaml
+- Services:
+    - My Service:
+        widget:
+          type: customapi
+          url: http://localhost:8080/api/stats
+          mappings:
+            - field: total_users
+              label: Users
+              format: number
+            - field: uptime_percent
+              label: Uptime
+              format: percent
+```
+
+No plugin code needed. See the Homepage docs for full `customapi` options.
 
 ## Plugin Structure
 
@@ -25,89 +86,103 @@ src/widgets/plugins/my-service/
   types.ts          # optional: API response type definitions
 ```
 
-### `index.ts` -- Widget Definition
+### Scaffolding
+
+```bash
+pnpm create-widget my-service
+```
+
+Creates all three files with boilerplate. The script validates the name and checks for conflicts with existing widgets.
+
+## Writing the Definition (`index.ts`)
+
+The definition tells the server-side proxy how to talk to your service's API.
 
 ```typescript
 import genericProxyHandler from "utils/proxy/handlers/generic";
 import type { Widget } from "widgets/types";
 
 const widget: Widget = {
-  id: "my-service",        // must match directory name
-  name: "My Service",      // human-readable name
+  id: "my-service",        // must match the folder name exactly
+  name: "My Service",
   description: "Monitors my service",
 
   definition: {
+    // URL template. {url} comes from the user's services.yaml.
+    // {endpoint} is replaced per-mapping. {key} is the API key.
     api: "{url}/api/v1/{endpoint}",
     proxyHandler: genericProxyHandler,
+
     mappings: {
+      // Each key is an endpoint name used in the component
       stats: {
-        endpoint: "stats",
-        validate: ["total"],           // response must contain these fields
+        endpoint: "stats",               // actual API path
+        validate: ["total"],             // response must contain these fields
       },
       items: {
         endpoint: "items",
-        params: ["page", "limit"],     // query params passed from component
-        map: (data) => transform(data), // optional response transformation
+        params: ["page", "limit"],       // query params forwarded from the component
+        map: (data) => transform(data),  // optional: reshape the response
       },
     },
   },
 
-  aliases: ["my-service-v2"], // optional: additional type names
+  // Optional: register alternative type names
+  aliases: ["my-service-v2"],
 };
 
 export default widget;
 ```
 
-### The `Widget` Interface
+### URL Template Placeholders
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | `string` | yes | Unique identifier, must match the plugin directory name |
-| `name` | `string` | yes | Human-readable display name |
-| `description` | `string` | no | Brief description |
-| `definition` | `WidgetDefinition` | yes | Proxy and API configuration |
-| `aliases` | `string[]` | no | Additional type names that resolve to this widget |
+| Placeholder | Source | Example |
+|-------------|--------|---------|
+| `{url}` | `widget.url` in `services.yaml` | `http://localhost:8080` |
+| `{endpoint}` | The mapping's `endpoint` field | `stats` |
+| `{key}` | `widget.key` in `services.yaml` | `abc123` |
 
-### The `WidgetDefinition` Interface
+You can use any field from the user's YAML config as a placeholder. For example, `{slug}` works if the user sets `slug: my-page` in their config.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `api` | `string` | URL template with `{url}`, `{endpoint}`, `{key}` placeholders |
-| `proxyHandler` | `ProxyHandler` | Proxy handler function (usually `genericProxyHandler`) |
-| `mappings` | `Record<string, EndpointMapping>` | Map of endpoint names to their configurations |
-| `headers` | `Record<string, string>` | Default HTTP headers for all endpoints |
-| `allowedEndpoints` | `RegExp` | Regex for endpoints that bypass explicit mapping |
+### Endpoint Mapping Fields
 
-### The `EndpointMapping` Interface
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `endpoint` | `string` | -- | API path substituted into `{endpoint}` |
+| `validate` | `string[]` | -- | Fields that must exist in the response (returns error if missing) |
+| `params` | `string[]` | -- | Query parameter names to forward from the component call |
+| `optionalParams` | `string[]` | -- | Query params included only if the component provides them |
+| `map` | `(data) => unknown` | -- | Transform the raw API response before sending to the browser |
+| `method` | `string` | `GET` | HTTP method |
+| `segments` | `string[]` | -- | Dynamic URL path segments (e.g., `{id}`) |
+| `headers` | `Record<string, string>` | -- | Extra HTTP headers for this endpoint |
+| `body` | `unknown` | -- | Request body for POST/PUT |
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `endpoint` | `string` | Actual API path (substituted into `{endpoint}` in the API template) |
-| `validate` | `string[]` | Fields that must exist in the response |
-| `params` | `string[]` | Query parameter names to pass through to the upstream API |
-| `optionalParams` | `string[]` | Optional query parameters (included only if provided) |
-| `map` | `(data) => unknown` | Transform function applied to the response before returning to client |
-| `method` | `string` | HTTP method override (default: `GET`) |
-| `segments` | `string[]` | Dynamic URL path segments (e.g., `{id}` in the endpoint path) |
-| `headers` | `Record<string, string>` | Per-endpoint header overrides |
-| `body` | `unknown` | Request body (for POST/PUT endpoints) |
+### Authentication
 
-## Proxy Lifecycle
+Auth is handled automatically based on the user's `services.yaml`:
 
-When a user's browser loads a widget:
+- **API key in URL**: Use `{key}` in the `api` template (e.g., `"{url}/api?apikey={key}"`)
+- **Basic auth**: The user sets `username` and `password`; the generic handler adds `Authorization: Basic` automatically
+- **Bearer/custom headers**: Use `credentialedProxyHandler` instead of `genericProxyHandler`
 
-1. The component calls `useWidgetAPI(widget, "stats")` (or whatever endpoint name)
-2. The hook builds a URL: `/api/services/proxy?group=X&service=Y&endpoint=stats`
-3. The server-side proxy route looks up the widget definition by type
-4. It finds the `stats` mapping and builds the upstream URL from the `api` template
-5. It calls the `proxyHandler` which fetches from the upstream service
-6. Auth credentials (from `services.yaml`) are added as headers automatically
-7. The response is validated (if `validate` is set) and transformed (if `map` is set)
-8. The result is returned to the browser as JSON
+```typescript
+import credentialedProxyHandler from "utils/proxy/handlers/credentialed";
 
-Plugins never make client-side network requests. All upstream communication goes through the server-side proxy.
+const widget: Widget = {
+  // ...
+  definition: {
+    api: "{url}/api/{endpoint}",
+    proxyHandler: credentialedProxyHandler,
+    // The credentialed handler reads widget.key and sends it
+    // as an appropriate auth header based on the service type
+  },
+};
+```
 
-## Component Pattern
+## Writing the Component (`component.tsx`)
+
+The component renders the widget UI using data fetched through the proxy.
 
 ```tsx
 import Block from "components/services/widget/block";
@@ -115,44 +190,113 @@ import Container from "components/services/widget/container";
 import { useTranslation } from "next-i18next";
 import useWidgetAPI from "utils/proxy/use-widget-api";
 
-export default function Component({ service }) {
+export default function Component({ service }: { service: { widget: Record<string, unknown>; [key: string]: unknown } }) {
   const { t } = useTranslation();
   const { widget } = service;
 
+  // Fetch data through the proxy. "stats" matches a key in definition.mappings.
   const { data, error } = useWidgetAPI(widget, "stats");
 
-  // Error state
+  // 1. Error state
   if (error) return <Container service={service} error={error} />;
 
-  // Loading state (data not yet available)
+  // 2. Loading state (data hasn't arrived yet)
   if (!data) {
     return (
       <Container service={service}>
         <Block label="my-service.total" />
+        <Block label="my-service.active" />
       </Container>
     );
   }
 
-  // Loaded state
+  // 3. Loaded state
   return (
     <Container service={service}>
       <Block label="my-service.total" value={t("common.number", { value: data.total })} />
+      <Block label="my-service.active" value={t("common.number", { value: data.active })} />
     </Container>
   );
 }
 ```
 
-### Key rules for components:
+### Rules
 
-- Always handle three states: error, loading (no data), and loaded
-- Use `<Container>` as the wrapper and `<Block>` for each data field
-- Translation keys follow the pattern `widgetname.fieldname`
-- Pass formatted values through `useTranslation()`'s `t()` function
-- Multiple endpoints: call `useWidgetAPI` once per endpoint
+- Always handle all three states: error, loading, loaded
+- Use `<Container>` as the outer wrapper and `<Block>` for each data field
+- Call `useWidgetAPI(widget, "endpointName")` for each endpoint defined in your mappings
+- Format values through `t()` from `useTranslation()` (handles locale-aware number/date formatting)
+- Never make HTTP requests directly from the component -- all data flows through the proxy
 
-## Configuration (services.yaml)
+### Multiple Endpoints
 
-Users configure widgets in their `services.yaml`:
+Call `useWidgetAPI` once per endpoint:
+
+```tsx
+const { data: statusData, error: statusError } = useWidgetAPI(widget, "status");
+const { data: statsData, error: statsError } = useWidgetAPI(widget, "stats");
+
+if (statusError || statsError) {
+  return <Container service={service} error={statusError ?? statsError} />;
+}
+```
+
+### Passing Query Parameters
+
+If your mapping declares `params`, pass them from the component:
+
+```tsx
+// In the component:
+const { data } = useWidgetAPI(widget, "items", { page: 1, limit: 10 });
+
+// In the definition:
+mappings: {
+  items: {
+    endpoint: "items",
+    params: ["page", "limit"],
+  },
+},
+```
+
+### Refresh Interval
+
+To poll an endpoint on an interval:
+
+```tsx
+const { data } = useWidgetAPI(widget, "stats", { refreshInterval: 5000 });
+```
+
+## Proxy Lifecycle
+
+When a user's browser loads a widget:
+
+```
+Browser                   Server                     Upstream Service
+  |                         |                              |
+  |-- useWidgetAPI -------->|                              |
+  |   GET /api/services/    |                              |
+  |   proxy?endpoint=stats  |                              |
+  |                         |-- Look up widget type ------>|
+  |                         |   in merged registry         |
+  |                         |                              |
+  |                         |-- Build URL from template -->|
+  |                         |   "{url}/api/v1/stats"       |
+  |                         |   + auth headers             |
+  |                         |                              |
+  |                         |-- httpProxy(url) ----------->|
+  |                         |                              |
+  |                         |<-- Raw response -------------|
+  |                         |                              |
+  |                         |-- validate + map() --------->|
+  |                         |                              |
+  |<-- JSON response -------|                              |
+```
+
+API keys, passwords, and upstream URLs never leave the server. The browser only sees the sanitized, mapped JSON response.
+
+## User Configuration (services.yaml)
+
+Users add your widget to their `services.yaml`:
 
 ```yaml
 - Services:
@@ -160,24 +304,16 @@ Users configure widgets in their `services.yaml`:
         href: https://my-service.example.com
         icon: my-service.png
         widget:
-          type: my-service
+          type: my-service    # matches your plugin's id
           url: http://localhost:8080
           key: my-api-key
 ```
 
-The `url` and `key` fields map to `{url}` and `{key}` in the API template. The `type` field must match the plugin's `id`.
-
-### Authentication
-
-The proxy system handles auth automatically based on the `services.yaml` config:
-
-- **API key in URL**: Use `{key}` in the `api` template (e.g., `"{url}/api?apikey={key}"`)
-- **Basic auth**: Set `username` and `password` in the YAML config; the generic handler adds an `Authorization: Basic` header
-- **Custom auth**: Use `credentialedProxyHandler` instead of `genericProxyHandler` for Bearer tokens, X-API-Key headers, etc.
+Any field under `widget:` is available as a placeholder in your `api` template and accessible in your component via `widget.fieldName`.
 
 ## Aliases
 
-If your service has alternate names (e.g., a rebrand), declare them in `aliases`:
+If your service was rebranded or has alternate names:
 
 ```typescript
 const widget: Widget = {
@@ -188,7 +324,21 @@ const widget: Widget = {
 };
 ```
 
-Users can use `type: myapp`, `type: myapp-legacy`, or `type: oldname` in their YAML.
+Users can use `type: myapp`, `type: myapp-legacy`, or `type: oldname` interchangeably.
+
+## Translation Keys
+
+Widget labels use i18n translation keys. Create a JSON file at `public/locales/en/my-service.json`:
+
+```json
+{
+  "total": "Total",
+  "active": "Active",
+  "status": "Status"
+}
+```
+
+In the component, reference these as `my-service.total`, `my-service.active`, etc. The `<Block label="my-service.total" />` component looks up the key automatically.
 
 ## Testing
 
@@ -202,6 +352,11 @@ import widget from "./index";
 describe("my-service widget config", () => {
   it("exports a valid widget config", () => {
     expectWidgetConfigShape(widget.definition);
+  });
+
+  it("has correct metadata", () => {
+    expect(widget.id).toBe("my-service");
+    expect(widget.name).toBe("My Service");
   });
 });
 ```
@@ -228,21 +383,44 @@ describe("my-service component", () => {
       <Component service={{ widget: { type: "my-service" } }} />,
       { settings: { hideErrors: false } },
     );
-    expect(container.querySelectorAll(".service-block")).toHaveLength(1);
+    expect(container.querySelectorAll(".service-block")).toHaveLength(2);
+  });
+
+  it("renders data when loaded", () => {
+    useWidgetAPI.mockReturnValue({
+      data: { total: 42, active: 10 },
+      error: undefined,
+    });
+    renderWithProviders(
+      <Component service={{ widget: { type: "my-service" } }} />,
+      { settings: { hideErrors: false } },
+    );
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
   });
 });
 ```
 
 Run tests: `pnpm test`
 
-## Local Development
+## Reference Implementations
 
-1. Create the plugin: `pnpm create-widget my-service`
-2. Configure a test service in your local `services.yaml`
-3. Start the dev server: `pnpm dev`
-4. The plugin is auto-discovered and available immediately
-5. Edit the component and see changes via hot reload
+Three built-in plugins demonstrate increasing complexity:
 
-## Legacy Widgets
+| Plugin | Complexity | Key features |
+|--------|-----------|--------------|
+| `src/widgets/plugins/adguard/` | Simple | Single endpoint, no auth, no transforms |
+| `src/widgets/plugins/uptimekuma/` | Medium | Custom `{slug}` URL param, heartbeat aggregation in component |
+| `src/widgets/plugins/sonarr/` | Complex | API key auth, 5 endpoints, `map` transforms, `validate`, `params`, queue UI |
 
-Existing widgets in `src/widgets/{name}/` continue to work unchanged. They are loaded from `legacy-widgets.js` and `legacy-components.js`. New widgets should be created as plugins in `src/widgets/plugins/`. To migrate a legacy widget, move its files to the plugin format and remove its entries from the legacy registries.
+Read these to understand the pattern before writing your own.
+
+## What Requires a Rebuild
+
+| Action | Rebuild needed? |
+|--------|----------------|
+| Add a plugin to `src/widgets/plugins/` | Yes (`pnpm build` or `pnpm dev`) |
+| Change a plugin's component | No (hot reload in `pnpm dev`) |
+| Change a plugin's definition | Yes (server restart or rebuild) |
+| Change `services.yaml` | No (reloaded at runtime) |
+| Use `customapi` widget | No (YAML-only, no code) |
