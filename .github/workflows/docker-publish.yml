@@ -21,7 +21,7 @@ jobs:
 
   build:
     name: Build App
-    if: github.repository == 'gethomepage/homepage'
+    if: github.repository == 'wow-look-at-my/homepage'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -80,7 +80,7 @@ jobs:
   publish:
     name: Docker Build & Push
     needs: build
-    if: github.repository == 'gethomepage/homepage'
+    if: github.repository == 'wow-look-at-my/homepage'
     runs-on: ubuntu-latest
     permissions:
       contents: read
