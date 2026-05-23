@@ -3,11 +3,7 @@ import type { ComponentType } from "react";
 
 export type MapFn = ((data: unknown) => unknown) | Record<string, unknown>;
 
-export type ProxyHandler = (
-  req: NextApiRequest,
-  res: NextApiResponse,
-  map?: MapFn,
-) => Promise<void | NextApiResponse>;
+export type ProxyHandler = (req: NextApiRequest, res: NextApiResponse, map?: MapFn) => Promise<void | NextApiResponse>;
 
 export interface EndpointMapping<TResponse = unknown> {
   endpoint: string;

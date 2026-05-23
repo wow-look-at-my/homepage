@@ -26,7 +26,9 @@ if (fs.existsSync(pluginDir)) {
 }
 
 if (fs.existsSync(legacyDir)) {
-  console.error(`A legacy widget "${name}" already exists at ${legacyDir}. Migrate it manually or choose a different name.`);
+  console.error(
+    `A legacy widget "${name}" already exists at ${legacyDir}. Migrate it manually or choose a different name.`,
+  );
   process.exit(1);
 }
 

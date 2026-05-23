@@ -23,7 +23,11 @@ function getTitle(queueEntry: SonarrQueueDetail, seriesData: SonarrSeries[]) {
   return title;
 }
 
-export default function Component({ service }: { service: { widget: Record<string, unknown>; [key: string]: unknown } }) {
+export default function Component({
+  service,
+}: {
+  service: { widget: Record<string, unknown>; [key: string]: unknown };
+}) {
   const { t } = useTranslation();
   const { widget } = service;
 
@@ -70,7 +74,8 @@ export default function Component({ service }: { service: { widget: Record<strin
     );
   }
 
-  const enableQueue = (widget as Record<string, unknown>)?.enableQueue && Array.isArray(queueDetailsData) && queueDetailsData.length > 0;
+  const enableQueue =
+    (widget as Record<string, unknown>)?.enableQueue && Array.isArray(queueDetailsData) && queueDetailsData.length > 0;
 
   return (
     <>

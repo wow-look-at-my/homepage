@@ -44,19 +44,23 @@ const widget: Widget = {
               episodeId: (entry.episodeId as number) ?? entry.id,
               status: entry.status,
             }))
-            .sort((a: { trackedDownloadState: string; sizeLeft: number; size: number },
-                   b: { trackedDownloadState: string; sizeLeft: number; size: number }) => {
-              const downloadingA = a.trackedDownloadState === "downloading";
-              const downloadingB = b.trackedDownloadState === "downloading";
-              if (downloadingA && !downloadingB) return -1;
-              if (downloadingB && !downloadingA) return 1;
+            .sort(
+              (
+                a: { trackedDownloadState: string; sizeLeft: number; size: number },
+                b: { trackedDownloadState: string; sizeLeft: number; size: number },
+              ) => {
+                const downloadingA = a.trackedDownloadState === "downloading";
+                const downloadingB = b.trackedDownloadState === "downloading";
+                if (downloadingA && !downloadingB) return -1;
+                if (downloadingB && !downloadingA) return 1;
 
-              const percentA = a.sizeLeft / a.size;
-              const percentB = b.sizeLeft / b.size;
-              if (percentA < percentB) return -1;
-              if (percentA > percentB) return 1;
-              return 0;
-            }),
+                const percentA = a.sizeLeft / a.size;
+                const percentB = b.sizeLeft / b.size;
+                if (percentA < percentB) return -1;
+                if (percentA > percentB) return 1;
+                return 0;
+              },
+            ),
       },
       calendar: {
         endpoint: "calendar",

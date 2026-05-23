@@ -6,7 +6,11 @@ import useWidgetAPI from "utils/proxy/use-widget-api";
 
 import type { UptimeKumaHeartbeat, UptimeKumaStatusPage } from "./types";
 
-export default function Component({ service }: { service: { widget: Record<string, unknown>; [key: string]: unknown } }) {
+export default function Component({
+  service,
+}: {
+  service: { widget: Record<string, unknown>; [key: string]: unknown };
+}) {
   const { t } = useTranslation();
 
   const { widget } = service;

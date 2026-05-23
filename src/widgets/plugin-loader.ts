@@ -3,7 +3,7 @@ import path from "path";
 
 import createLogger from "utils/logger";
 
-import type { Widget, WidgetDefinition, WidgetRegistry } from "./types";
+import type { Widget, WidgetRegistry } from "./types";
 
 const logger = createLogger("pluginLoader");
 
