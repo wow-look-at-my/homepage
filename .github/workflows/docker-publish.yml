@@ -18,7 +18,6 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-
   build:
     name: Build App
     if: github.repository == 'wow-look-at-my/homepage'
