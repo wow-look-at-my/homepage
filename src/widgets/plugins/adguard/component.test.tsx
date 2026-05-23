@@ -13,7 +13,7 @@ vi.mock("utils/proxy/use-widget-api", () => ({
 
 import Component from "./component";
 
-describe("widgets/adguard/component", () => {
+describe("widgets/plugins/adguard/component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -57,7 +57,7 @@ describe("widgets/adguard/component", () => {
 
     expect(screen.getByText("100")).toBeInTheDocument();
     expect(screen.getByText("20")).toBeInTheDocument();
-    expect(screen.getByText("6")).toBeInTheDocument(); // filtered sum
-    expect(screen.getByText("10")).toBeInTheDocument(); // 0.01s -> 10ms
+    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
   });
 });

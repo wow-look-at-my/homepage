@@ -69,7 +69,7 @@ export default defineConfig([
   // modules under test see the mocked dependencies. `import/order` can't safely
   // auto-fix those cases, so disable it for test files.
   {
-    files: ["src/**/*.test.{js,jsx}", "src/**/*.spec.{js,jsx}"],
+    files: ["src/**/*.test.{js,jsx,ts,tsx}", "src/**/*.spec.{js,jsx,ts,tsx}"],
     rules: {
       "import/order": "off",
     },

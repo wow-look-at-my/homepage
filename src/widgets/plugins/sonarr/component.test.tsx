@@ -9,13 +9,13 @@ import { expectBlockValue } from "test-utils/widget-assertions";
 const { useWidgetAPI } = vi.hoisted(() => ({ useWidgetAPI: vi.fn() }));
 vi.mock("utils/proxy/use-widget-api", () => ({ default: useWidgetAPI }));
 
-vi.mock("../../components/widgets/queue/queueEntry", () => ({
-  default: ({ title }) => <div data-testid="queue-entry">{title}</div>,
+vi.mock("../../../components/widgets/queue/queueEntry", () => ({
+  default: ({ title }: { title: string }) => <div data-testid="queue-entry">{title}</div>,
 }));
 
 import Component from "./component";
 
-describe("widgets/sonarr/component", () => {
+describe("widgets/plugins/sonarr/component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -34,7 +34,7 @@ describe("widgets/sonarr/component", () => {
   });
 
   it("renders counts and queue entries when enabled", () => {
-    useWidgetAPI.mockImplementation((_widget, endpoint) => {
+    useWidgetAPI.mockImplementation((_widget: unknown, endpoint: string) => {
       if (endpoint === "wanted/missing") return { data: { totalRecords: 1 }, error: undefined };
       if (endpoint === "queue") return { data: { totalRecords: 2 }, error: undefined };
       if (endpoint === "series") return { data: [{ id: 10, title: "Show" }], error: undefined };

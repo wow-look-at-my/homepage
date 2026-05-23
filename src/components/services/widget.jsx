@@ -1,10 +1,14 @@
 import ErrorBoundary from "components/errorboundry";
+import ExternalWidget from "components/services/external-widget";
 import { useTranslation } from "next-i18next";
+import useSWR from "swr";
 
 import components from "widgets/components";
 
 export default function Widget({ widget, service }) {
   const { t } = useTranslation("common");
+
+  const { data: externalPlugins } = useSWR("/api/plugins/list", { refreshInterval: 2000 });
 
   const ServiceWidget = components[widget.type];
 
@@ -13,6 +17,15 @@ export default function Widget({ widget, service }) {
     return (
       <ErrorBoundary>
         <ServiceWidget service={fullService} />
+      </ErrorBoundary>
+    );
+  }
+
+  const pluginHash = externalPlugins?.[widget.type];
+  if (pluginHash) {
+    return (
+      <ErrorBoundary>
+        <ExternalWidget type={widget.type} version={pluginHash} service={fullService} />
       </ErrorBoundary>
     );
   }
