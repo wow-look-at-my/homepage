@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import esbuild from "esbuild";
 import fs from "fs";
 import path from "path";
@@ -38,7 +39,7 @@ function sharedModulesPlugin() {
 }
 
 const compiledPlugins = new Map();
-let initialized = false;
+let watchersStarted = false;
 
 function findComponent(pluginDir) {
   for (const ext of ["component.tsx", "component.jsx", "component.ts", "component.js"]) {
@@ -46,6 +47,10 @@ function findComponent(pluginDir) {
     if (fs.existsSync(p)) return p;
   }
   return null;
+}
+
+function hashCode(code) {
+  return crypto.createHash("md5").update(code).digest("hex").slice(0, 8);
 }
 
 async function compilePlugin(name, pluginDir) {
@@ -77,16 +82,12 @@ async function compilePlugin(name, pluginDir) {
         ].join("\n"),
       },
       plugins: [sharedModulesPlugin()],
-      loader: {
-        ".tsx": "tsx",
-        ".ts": "ts",
-        ".jsx": "jsx",
-        ".js": "js",
-      },
+      loader: { ".tsx": "tsx", ".ts": "ts", ".jsx": "jsx", ".js": "js" },
     });
 
     if (result.outputFiles && result.outputFiles.length > 0) {
-      return result.outputFiles[0].text;
+      const code = result.outputFiles[0].text;
+      return { code, hash: hashCode(code) };
     }
   } catch (err) {
     logger.error("External plugin '%s': compilation failed: %s", name, err);
@@ -94,48 +95,120 @@ async function compilePlugin(name, pluginDir) {
   return null;
 }
 
-export async function initExternalPlugins() {
-  if (initialized) return;
-
-  const externalDir = process.env.HOMEPAGE_PLUGINS_DIR;
-  if (!externalDir || !fs.existsSync(externalDir)) {
-    initialized = true;
-    return;
+async function compileAndStore(name, pluginDir) {
+  const result = await compilePlugin(name, pluginDir);
+  if (result) {
+    const prev = compiledPlugins.get(name);
+    compiledPlugins.set(name, result);
+    if (prev && prev.hash !== result.hash) {
+      logger.info("Recompiled external plugin: %s (hash %s -> %s)", name, prev.hash, result.hash);
+    } else if (!prev) {
+      logger.debug("Compiled external plugin: %s (hash %s, %d bytes)", name, result.hash, result.code.length);
+    }
   }
+}
+
+function watchPluginDir(pluginDir, name) {
+  const debounceTimers = new Map();
+
+  try {
+    fs.watch(pluginDir, { recursive: false }, (eventType, filename) => {
+      if (!filename) return;
+
+      const existing = debounceTimers.get(name);
+      if (existing) clearTimeout(existing);
+
+      debounceTimers.set(
+        name,
+        setTimeout(() => {
+          debounceTimers.delete(name);
+          logger.debug("File change detected in plugin '%s': %s", name, filename);
+          compileAndStore(name, pluginDir);
+        }, 200),
+      );
+    });
+  } catch {
+    // fs.watch may not be available on all platforms; fall back to no watching
+  }
+}
+
+function startWatching(externalDir) {
+  if (watchersStarted) return;
+  watchersStarted = true;
 
   let entries;
   try {
     entries = fs.readdirSync(externalDir, { withFileTypes: true });
-  } catch (err) {
-    logger.error("Failed to read HOMEPAGE_PLUGINS_DIR '%s': %s", externalDir, err);
-    initialized = true;
+  } catch {
     return;
   }
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-
-    const name = entry.name;
-    const pluginDir = path.join(externalDir, name);
-    const code = await compilePlugin(name, pluginDir);
-    if (code) {
-      compiledPlugins.set(name, code);
-      logger.debug("Compiled external plugin: %s (%d bytes)", name, code.length);
-    }
+    watchPluginDir(path.join(externalDir, entry.name), entry.name);
   }
 
-  initialized = true;
+  // Watch the top-level dir for new plugin folders
+  try {
+    fs.watch(externalDir, { recursive: false }, (eventType, filename) => {
+      if (!filename) return;
+      const pluginDir = path.join(externalDir, filename);
+      if (fs.existsSync(pluginDir) && fs.statSync(pluginDir).isDirectory() && !compiledPlugins.has(filename)) {
+        logger.info("New external plugin detected: %s", filename);
+        compileAndStore(filename, pluginDir);
+        watchPluginDir(pluginDir, filename);
+      }
+    });
+  } catch {
+    // fall back to no watching
+  }
+}
+
+let initPromise = null;
+
+export async function initExternalPlugins() {
+  if (initPromise) return initPromise;
+
+  initPromise = (async () => {
+    const externalDir = process.env.HOMEPAGE_PLUGINS_DIR;
+    if (!externalDir || !fs.existsSync(externalDir)) return;
+
+    let entries;
+    try {
+      entries = fs.readdirSync(externalDir, { withFileTypes: true });
+    } catch (err) {
+      logger.error("Failed to read HOMEPAGE_PLUGINS_DIR '%s': %s", externalDir, err);
+      return;
+    }
+
+    const promises = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      promises.push(compileAndStore(entry.name, path.join(externalDir, entry.name)));
+    }
+    await Promise.all(promises);
+
+    startWatching(externalDir);
+  })();
+
+  return initPromise;
 }
 
 export function getCompiledPlugin(name) {
-  return compiledPlugins.get(name) || null;
+  const entry = compiledPlugins.get(name);
+  return entry ? entry.code : null;
 }
 
 export function listExternalPlugins() {
-  return Array.from(compiledPlugins.keys());
+  const result = {};
+  for (const [name, entry] of compiledPlugins) {
+    result[name] = entry.hash;
+  }
+  return result;
 }
 
 export function resetCompilerState() {
   compiledPlugins.clear();
-  initialized = false;
+  watchersStarted = false;
+  initPromise = null;
 }

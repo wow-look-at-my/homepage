@@ -107,9 +107,14 @@ External plugin components can import these shared modules (provided by Homepage
 
 Any other imports must be self-contained within your plugin folder. You cannot import from arbitrary Homepage internals.
 
+### Hot reload
+
+External plugins hot-reload when their source files change. The server watches `HOMEPAGE_PLUGINS_DIR` for filesystem events, recompiles the affected plugin with esbuild, and the browser picks up the new version within ~2 seconds (via polling). No restart, no rebuild, no page refresh -- just save the file and see the updated widget.
+
+New plugin folders added to the directory are also detected and compiled automatically.
+
 ### Limitations of external plugins
 
-- Requires a server restart to pick up new or changed plugins (no hot reload)
 - Only the shared modules listed above are available as imports
 - Complex plugins that need internal components (e.g., QueueEntry) must be built-in plugins instead
 
@@ -498,7 +503,7 @@ Read these to understand the pattern before writing your own.
 |--------|----------|----------|
 | Add a built-in plugin to `src/widgets/plugins/` | Yes | -- |
 | Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No |
-| Add an external plugin to `HOMEPAGE_PLUGINS_DIR` | No | Yes |
-| Change an external plugin's files | No | Yes |
+| Add an external plugin to `HOMEPAGE_PLUGINS_DIR` | No | No (auto-detected) |
+| Change an external plugin's files | No | No (auto-recompiled) |
 | Change `services.yaml` | No | No |
 | Use `customapi` widget | No | No |

@@ -41,7 +41,8 @@ describe("plugin-compiler", () => {
 
     await initExternalPlugins();
 
-    expect(listExternalPlugins()).toContain("test-ext");
+    const plugins = listExternalPlugins();
+    expect(plugins["test-ext"]).toBeTruthy();
 
     const code = getCompiledPlugin("test-ext");
     expect(code).toBeTruthy();
@@ -49,12 +50,12 @@ describe("plugin-compiler", () => {
     expect(code).toContain("test-ext");
   });
 
-  it("returns empty list when no external plugins dir", async () => {
+  it("returns empty object when no external plugins dir", async () => {
     process.env.HOMEPAGE_PLUGINS_DIR = path.join(FIXTURES_DIR, "nonexistent");
 
     await initExternalPlugins();
 
-    expect(listExternalPlugins()).toEqual([]);
+    expect(listExternalPlugins()).toEqual({});
   });
 
   it("skips plugins without a component file", async () => {
@@ -65,5 +66,21 @@ describe("plugin-compiler", () => {
     await initExternalPlugins();
 
     expect(getCompiledPlugin("no-component")).toBeNull();
+  });
+
+  it("includes a content hash per plugin", async () => {
+    writeExternalPlugin(
+      "hashed",
+      `
+      import React from "react";
+      export default function Component() { return React.createElement("div", null, "test"); }
+    `,
+    );
+
+    await initExternalPlugins();
+
+    const plugins = listExternalPlugins();
+    expect(typeof plugins.hashed).toBe("string");
+    expect(plugins.hashed.length).toBe(8);
   });
 });

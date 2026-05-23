@@ -8,7 +8,7 @@ import components from "widgets/components";
 export default function Widget({ widget, service }) {
   const { t } = useTranslation("common");
 
-  const { data: externalPlugins } = useSWR("/api/plugins/list");
+  const { data: externalPlugins } = useSWR("/api/plugins/list", { refreshInterval: 2000 });
 
   const ServiceWidget = components[widget.type];
 
@@ -21,10 +21,11 @@ export default function Widget({ widget, service }) {
     );
   }
 
-  if (externalPlugins && externalPlugins.includes(widget.type)) {
+  const pluginHash = externalPlugins?.[widget.type];
+  if (pluginHash) {
     return (
       <ErrorBoundary>
-        <ExternalWidget type={widget.type} service={fullService} />
+        <ExternalWidget type={widget.type} version={pluginHash} service={fullService} />
       </ErrorBoundary>
     );
   }

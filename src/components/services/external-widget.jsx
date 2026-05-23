@@ -29,50 +29,53 @@ function ensureSharedModules() {
   sharedModulesReady = true;
 }
 
-function useExternalPlugin(type) {
-  const [component, setComponent] = useState(null);
-  const [error, setError] = useState(null);
-  const loadedRef = useRef(false);
-
-  useEffect(() => {
-    if (loadedRef.current) return;
-    loadedRef.current = true;
-
+function loadPluginScript(type, version) {
+  return new Promise((resolve, reject) => {
     ensureSharedModules();
 
-    if (window.__HOMEPAGE_PLUGINS__[type]) {
-      setComponent(() => window.__HOMEPAGE_PLUGINS__[type]);
-      return;
-    }
+    // Remove any previously loaded script for this plugin
+    const existing = document.querySelector(`script[data-plugin="${type}"]`);
+    if (existing) existing.remove();
+
+    // Clear the old component so the new bundle can re-register
+    delete window.__HOMEPAGE_PLUGINS__[type];
 
     const script = document.createElement("script");
-    script.src = `/api/plugins/${encodeURIComponent(type)}`;
+    script.src = `/api/plugins/${encodeURIComponent(type)}?v=${version}`;
     script.async = true;
+    script.setAttribute("data-plugin", type);
     script.onload = () => {
       const loaded = window.__HOMEPAGE_PLUGINS__[type];
       if (loaded) {
-        setComponent(() => loaded);
+        resolve(loaded);
       } else {
-        setError(`Plugin "${type}" loaded but did not register a component`);
+        reject(new Error(`Plugin "${type}" loaded but did not register a component`));
       }
     };
-    script.onerror = () => {
-      setError(`Failed to load plugin "${type}"`);
-    };
+    script.onerror = () => reject(new Error(`Failed to load plugin "${type}"`));
     document.head.appendChild(script);
-  }, [type]);
-
-  return { component, error };
+  });
 }
 
-export default function ExternalWidget({ type, service }) {
+export default function ExternalWidget({ type, version, service }) {
   const { t } = useTranslation("common");
-  const { component: PluginComponent, error } = useExternalPlugin(type);
+  const [PluginComponent, setPluginComponent] = useState(null);
+  const [error, setError] = useState(null);
+  const loadedVersionRef = useRef(null);
+
+  useEffect(() => {
+    if (loadedVersionRef.current === version && PluginComponent) return;
+
+    loadedVersionRef.current = version;
+    setError(null);
+
+    loadPluginScript(type, version)
+      .then((component) => setPluginComponent(() => component))
+      .catch((err) => setError(err.message));
+  }, [type, version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (error) {
-    return (
-      <Container service={service} error={{ message: error }} />
-    );
+    return <Container service={service} error={{ message: error }} />;
   }
 
   if (!PluginComponent) {

@@ -11,6 +11,6 @@ export default async function handler(req, res) {
   }
 
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=3600");
+  res.setHeader("Cache-Control", "no-cache");
   return res.status(200).send(code);
 }
