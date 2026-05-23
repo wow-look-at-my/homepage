@@ -4,11 +4,13 @@ interface RequireContext {
   resolve(id: string): string;
 }
 
-interface NodeRequire {
-  context(
-    directory: string,
-    useSubdirectories?: boolean,
-    regExp?: RegExp,
-    mode?: "sync" | "lazy" | "eager" | "weak",
-  ): RequireContext;
+declare namespace NodeJS {
+  interface Require {
+    context(
+      directory: string,
+      useSubdirectories?: boolean,
+      regExp?: RegExp,
+      mode?: "sync" | "lazy" | "eager" | "weak",
+    ): RequireContext;
+  }
 }
