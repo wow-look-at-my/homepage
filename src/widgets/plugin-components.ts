@@ -9,7 +9,7 @@ try {
     const match = key.match(/^\.\/([^/]+)\/component\.(tsx|jsx)$/);
     if (match) {
       const name = match[1];
-      pluginComponents[name] = dynamic(() => ctx(key) as Promise<{ default: React.ComponentType }>);
+      pluginComponents[name] = dynamic(() => ctx(key) as Promise<{ default: React.ComponentType<any> }>);
     }
   }
 } catch {
