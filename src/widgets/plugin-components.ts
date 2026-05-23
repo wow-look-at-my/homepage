@@ -9,7 +9,6 @@ try {
     const match = key.match(/^\.\/([^/]+)\/component\.(tsx|jsx)$/);
     if (match) {
       const name = match[1];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       pluginComponents[name] = dynamic(() => ctx(key) as Promise<{ default: React.ComponentType<any> }>);
     }
   }
