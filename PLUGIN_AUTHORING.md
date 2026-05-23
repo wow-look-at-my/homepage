@@ -96,14 +96,14 @@ docker run -p 3000:3000 \
 
 External plugin components can import these shared modules (provided by Homepage at runtime):
 
-| Import path | What you get |
-|-------------|-------------|
-| `react` | React, hooks (useState, useEffect, etc.) |
-| `next-i18next` | `{ useTranslation }` |
-| `components/services/widget/block` | Block component (default export) |
-| `components/services/widget/container` | Container component (default export) |
-| `utils/proxy/use-widget-api` | useWidgetAPI hook (default export) |
-| `swr` | useSWR hook (default export) |
+| Import path                            | What you get                             |
+| -------------------------------------- | ---------------------------------------- |
+| `react`                                | React, hooks (useState, useEffect, etc.) |
+| `next-i18next`                         | `{ useTranslation }`                     |
+| `components/services/widget/block`     | Block component (default export)         |
+| `components/services/widget/container` | Container component (default export)     |
+| `utils/proxy/use-widget-api`           | useWidgetAPI hook (default export)       |
+| `swr`                                  | useSWR hook (default export)             |
 
 Any other imports must be self-contained within your plugin folder. You cannot import from arbitrary Homepage internals.
 
@@ -185,7 +185,7 @@ import genericProxyHandler from "utils/proxy/handlers/generic";
 import type { Widget } from "widgets/types";
 
 const widget: Widget = {
-  id: "my-service",        // must match the folder name exactly
+  id: "my-service", // must match the folder name exactly
   name: "My Service",
   description: "Monitors my service",
 
@@ -198,13 +198,13 @@ const widget: Widget = {
     mappings: {
       // Each key is an endpoint name used in the component
       stats: {
-        endpoint: "stats",               // actual API path
-        validate: ["total"],             // response must contain these fields
+        endpoint: "stats", // actual API path
+        validate: ["total"], // response must contain these fields
       },
       items: {
         endpoint: "items",
-        params: ["page", "limit"],       // query params forwarded from the component
-        map: (data) => transform(data),  // optional: reshape the response
+        params: ["page", "limit"], // query params forwarded from the component
+        map: (data) => transform(data), // optional: reshape the response
       },
     },
   },
@@ -218,27 +218,27 @@ export default widget;
 
 ### URL Template Placeholders
 
-| Placeholder | Source | Example |
-|-------------|--------|---------|
-| `{url}` | `widget.url` in `services.yaml` | `http://localhost:8080` |
-| `{endpoint}` | The mapping's `endpoint` field | `stats` |
-| `{key}` | `widget.key` in `services.yaml` | `abc123` |
+| Placeholder  | Source                          | Example                 |
+| ------------ | ------------------------------- | ----------------------- |
+| `{url}`      | `widget.url` in `services.yaml` | `http://localhost:8080` |
+| `{endpoint}` | The mapping's `endpoint` field  | `stats`                 |
+| `{key}`      | `widget.key` in `services.yaml` | `abc123`                |
 
 You can use any field from the user's YAML config as a placeholder. For example, `{slug}` works if the user sets `slug: my-page` in their config.
 
 ### Endpoint Mapping Fields
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `endpoint` | `string` | -- | API path substituted into `{endpoint}` |
-| `validate` | `string[]` | -- | Fields that must exist in the response (returns error if missing) |
-| `params` | `string[]` | -- | Query parameter names to forward from the component call |
-| `optionalParams` | `string[]` | -- | Query params included only if the component provides them |
-| `map` | `(data) => unknown` | -- | Transform the raw API response before sending to the browser |
-| `method` | `string` | `GET` | HTTP method |
-| `segments` | `string[]` | -- | Dynamic URL path segments (e.g., `{id}`) |
-| `headers` | `Record<string, string>` | -- | Extra HTTP headers for this endpoint |
-| `body` | `unknown` | -- | Request body for POST/PUT |
+| Field            | Type                     | Default | Description                                                       |
+| ---------------- | ------------------------ | ------- | ----------------------------------------------------------------- |
+| `endpoint`       | `string`                 | --      | API path substituted into `{endpoint}`                            |
+| `validate`       | `string[]`               | --      | Fields that must exist in the response (returns error if missing) |
+| `params`         | `string[]`               | --      | Query parameter names to forward from the component call          |
+| `optionalParams` | `string[]`               | --      | Query params included only if the component provides them         |
+| `map`            | `(data) => unknown`      | --      | Transform the raw API response before sending to the browser      |
+| `method`         | `string`                 | `GET`   | HTTP method                                                       |
+| `segments`       | `string[]`               | --      | Dynamic URL path segments (e.g., `{id}`)                          |
+| `headers`        | `Record<string, string>` | --      | Extra HTTP headers for this endpoint                              |
+| `body`           | `unknown`                | --      | Request body for POST/PUT                                         |
 
 ### Authentication
 
@@ -272,7 +272,11 @@ import Container from "components/services/widget/container";
 import { useTranslation } from "next-i18next";
 import useWidgetAPI from "utils/proxy/use-widget-api";
 
-export default function Component({ service }: { service: { widget: Record<string, unknown>; [key: string]: unknown } }) {
+export default function Component({
+  service,
+}: {
+  service: { widget: Record<string, unknown>; [key: string]: unknown };
+}) {
   const { t } = useTranslation();
   const { widget } = service;
 
@@ -386,7 +390,7 @@ Users add your widget to their `services.yaml`:
         href: https://my-service.example.com
         icon: my-service.png
         widget:
-          type: my-service    # matches your plugin's id
+          type: my-service # matches your plugin's id
           url: http://localhost:8080
           key: my-api-key
 ```
@@ -461,10 +465,9 @@ describe("my-service component", () => {
 
   it("renders placeholders while loading", () => {
     useWidgetAPI.mockReturnValue({ data: undefined, error: undefined });
-    const { container } = renderWithProviders(
-      <Component service={{ widget: { type: "my-service" } }} />,
-      { settings: { hideErrors: false } },
-    );
+    const { container } = renderWithProviders(<Component service={{ widget: { type: "my-service" } }} />, {
+      settings: { hideErrors: false },
+    });
     expect(container.querySelectorAll(".service-block")).toHaveLength(2);
   });
 
@@ -473,10 +476,9 @@ describe("my-service component", () => {
       data: { total: 42, active: 10 },
       error: undefined,
     });
-    renderWithProviders(
-      <Component service={{ widget: { type: "my-service" } }} />,
-      { settings: { hideErrors: false } },
-    );
+    renderWithProviders(<Component service={{ widget: { type: "my-service" } }} />, {
+      settings: { hideErrors: false },
+    });
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText("10")).toBeInTheDocument();
   });
@@ -489,21 +491,21 @@ Run tests: `pnpm test`
 
 Three built-in plugins demonstrate increasing complexity:
 
-| Plugin | Complexity | Key features |
-|--------|-----------|--------------|
-| `src/widgets/plugins/adguard/` | Simple | Single endpoint, no auth, no transforms |
-| `src/widgets/plugins/uptimekuma/` | Medium | Custom `{slug}` URL param, heartbeat aggregation in component |
-| `src/widgets/plugins/sonarr/` | Complex | API key auth, 5 endpoints, `map` transforms, `validate`, `params`, queue UI |
+| Plugin                            | Complexity | Key features                                                                |
+| --------------------------------- | ---------- | --------------------------------------------------------------------------- |
+| `src/widgets/plugins/adguard/`    | Simple     | Single endpoint, no auth, no transforms                                     |
+| `src/widgets/plugins/uptimekuma/` | Medium     | Custom `{slug}` URL param, heartbeat aggregation in component               |
+| `src/widgets/plugins/sonarr/`     | Complex    | API key auth, 5 endpoints, `map` transforms, `validate`, `params`, queue UI |
 
 Read these to understand the pattern before writing your own.
 
 ## What Requires What
 
-| Action | Rebuild? | Restart? |
-|--------|----------|----------|
-| Add a built-in plugin to `src/widgets/plugins/` | Yes | -- |
-| Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No |
-| Add an external plugin to `HOMEPAGE_PLUGINS_DIR` | No | No (auto-detected) |
-| Change an external plugin's files | No | No (auto-recompiled) |
-| Change `services.yaml` | No | No |
-| Use `customapi` widget | No | No |
+| Action                                                 | Rebuild?        | Restart?             |
+| ------------------------------------------------------ | --------------- | -------------------- |
+| Add a built-in plugin to `src/widgets/plugins/`        | Yes             | --                   |
+| Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No                   |
+| Add an external plugin to `HOMEPAGE_PLUGINS_DIR`       | No              | No (auto-detected)   |
+| Change an external plugin's files                      | No              | No (auto-recompiled) |
+| Change `services.yaml`                                 | No              | No                   |
+| Use `customapi` widget                                 | No              | No                   |
