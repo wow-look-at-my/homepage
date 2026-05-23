@@ -1,9 +1,10 @@
 import fs from "fs";
 import path from "path";
 
+import type { Widget, WidgetRegistry } from "./types";
+
 import createLogger from "utils/logger";
 
-import type { Widget, WidgetRegistry } from "./types";
 
 const logger = createLogger("pluginLoader");
 

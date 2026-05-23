@@ -1,13 +1,13 @@
-import Block from "components/services/widget/block";
-import Container from "components/services/widget/container";
 import { useTranslation } from "next-i18next";
 import { useCallback } from "react";
 
 import QueueEntry from "../../../components/widgets/queue/queueEntry";
 
-import useWidgetAPI from "utils/proxy/use-widget-api";
-
 import type { SonarrQueueDetail, SonarrSeries } from "./types";
+
+import useWidgetAPI from "utils/proxy/use-widget-api";
+import Container from "components/services/widget/container";
+import Block from "components/services/widget/block";
 
 function getProgress(sizeLeft: number, size: number) {
   return sizeLeft === 0 ? 100 : (1 - sizeLeft / size) * 100;

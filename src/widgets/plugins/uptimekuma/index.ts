@@ -1,5 +1,4 @@
 import genericProxyHandler from "utils/proxy/handlers/generic";
-
 import type { Widget } from "widgets/types";
 
 const widget: Widget = {

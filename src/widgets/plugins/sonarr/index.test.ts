@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import widget from "./index";
+
 import { expectWidgetConfigShape } from "test-utils/widget-config";
 
-import widget from "./index";
 
 describe("plugins/sonarr widget config", () => {
   it("exports a valid widget config", () => {

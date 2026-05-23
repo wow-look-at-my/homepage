@@ -1,10 +1,11 @@
-import Block from "components/services/widget/block";
-import Container from "components/services/widget/container";
 import { useTranslation } from "next-i18next";
 
+import type { AdguardStats } from "./types";
+
+import Block from "components/services/widget/block";
+import Container from "components/services/widget/container";
 import useWidgetAPI from "utils/proxy/use-widget-api";
 
-import type { AdguardStats } from "./types";
 
 export default function Component({ service }: { service: { widget: { type: string }; [key: string]: unknown } }) {
   const { t } = useTranslation();
