@@ -8,7 +8,11 @@ import createLogger from "utils/logger";
 
 const logger = createLogger("pluginLoader");
 
-const PLUGINS_DIR = path.join(__dirname, "plugins");
+// webpack rewrites bare `require(expr)` into something it cannot resolve, but it
+// leaves `__non_webpack_require__` alone, mapping it to the real Node require.
+// Under Vitest/Node `__non_webpack_require__` is undefined, so we fall back to the
+// normal `require` -- which keeps the loader tests (temp .js fixtures) working.
+const runtimeRequire: NodeRequire = typeof __non_webpack_require__ !== "undefined" ? __non_webpack_require__ : require;
 
 function isValidWidget(obj: unknown, dirName: string): obj is Widget {
   if (!obj || typeof obj !== "object") {
@@ -47,7 +51,59 @@ function isValidWidget(obj: unknown, dirName: string): obj is Widget {
   return true;
 }
 
-function loadPluginsFromDir(dir: string, registry: WidgetRegistry, seen: Set<string>): void {
+function registerWidget(widget: Widget, registry: WidgetRegistry, seen: Set<string>): void {
+  if (seen.has(widget.id)) {
+    logger.warn("Plugin '%s': id already registered, skipping", widget.id);
+    return;
+  }
+
+  registry[widget.id] = widget.definition;
+  seen.add(widget.id);
+  logger.debug("Loaded plugin: %s", widget.id);
+
+  if (widget.aliases) {
+    for (const alias of widget.aliases) {
+      if (seen.has(alias)) {
+        logger.warn("Plugin '%s': alias '%s' conflicts with existing widget, skipping alias", widget.id, alias);
+        continue;
+      }
+      registry[alias] = widget.definition;
+      seen.add(alias);
+      logger.debug("Registered alias: %s -> %s", alias, widget.id);
+    }
+  }
+}
+
+// Built-in plugins (src/widgets/plugins/<name>/index.ts) are bundled at build time.
+// Discover them with webpack's require.context -- the same webpack-friendly idiom
+// plugin-components.ts uses -- in "sync" mode, because widgets.js consumes the
+// definitions synchronously at module init. Under Vitest/Node require.context does not
+// exist and throws; the catch makes this a no-op there (built-ins are exercised by each
+// plugin's own index.test.ts instead).
+function loadBuiltinPlugins(registry: WidgetRegistry, seen: Set<string>): void {
+  try {
+    const ctx = require.context("./plugins", true, /^\.\/[^/]+\/index\.(ts|js)$/, "sync");
+    for (const key of ctx.keys()) {
+      const match = key.match(/^\.\/([^/]+)\/index\.(ts|js)$/);
+      if (!match) continue;
+
+      const dirName = match[1];
+      const mod = ctx(key) as { default?: unknown };
+      const widget = mod.default ?? mod;
+
+      if (isValidWidget(widget, dirName)) {
+        registerWidget(widget, registry, seen);
+      }
+    }
+  } catch {
+    // require.context is unavailable outside a webpack build (e.g. under Vitest).
+  }
+}
+
+// External plugins live in HOMEPAGE_PLUGINS_DIR and are loaded at runtime, so webpack can
+// never bundle them. They ship plain CommonJS (index.js/.cjs); load them with the real
+// Node require via runtimeRequire (native require cannot load .ts).
+function loadExternalPlugins(dir: string, registry: WidgetRegistry, seen: Set<string>): void {
   if (!fs.existsSync(dir)) {
     return;
   }
@@ -68,7 +124,7 @@ function loadPluginsFromDir(dir: string, registry: WidgetRegistry, seen: Set<str
 
     let mod: { default?: unknown };
     try {
-      mod = require(pluginDir);
+      mod = runtimeRequire(pluginDir);
     } catch (err) {
       logger.error("Plugin '%s': failed to load: %s", dirName, err);
       continue;
@@ -76,29 +132,8 @@ function loadPluginsFromDir(dir: string, registry: WidgetRegistry, seen: Set<str
 
     const widget = mod.default ?? mod;
 
-    if (!isValidWidget(widget, dirName)) {
-      continue;
-    }
-
-    if (seen.has(widget.id)) {
-      logger.warn("Plugin '%s': id already registered, skipping", widget.id);
-      continue;
-    }
-
-    registry[widget.id] = widget.definition;
-    seen.add(widget.id);
-    logger.debug("Loaded plugin: %s", widget.id);
-
-    if (widget.aliases) {
-      for (const alias of widget.aliases) {
-        if (seen.has(alias)) {
-          logger.warn("Plugin '%s': alias '%s' conflicts with existing widget, skipping alias", widget.id, alias);
-          continue;
-        }
-        registry[alias] = widget.definition;
-        seen.add(alias);
-        logger.debug("Registered alias: %s -> %s", alias, widget.id);
-      }
+    if (isValidWidget(widget, dirName)) {
+      registerWidget(widget, registry, seen);
     }
   }
 }
@@ -111,11 +146,11 @@ export function getPluginDefinitions(legacyKeys?: Set<string>): WidgetRegistry {
   const registry: WidgetRegistry = {};
   const seen = new Set<string>(legacyKeys ?? []);
 
-  loadPluginsFromDir(PLUGINS_DIR, registry, seen);
+  loadBuiltinPlugins(registry, seen);
 
   const externalDir = process.env.HOMEPAGE_PLUGINS_DIR;
   if (externalDir) {
-    loadPluginsFromDir(externalDir, registry, seen);
+    loadExternalPlugins(externalDir, registry, seen);
   }
 
   cachedDefinitions = registry;

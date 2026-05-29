@@ -24,7 +24,7 @@ the browser.
 
 ```bash
 pnpm install            # install deps
-pnpm dev                # next dev
+pnpm dev                # next dev --webpack (webpack, for plugin require.context parity)
 pnpm build              # next build --webpack (production)
 pnpm start              # next start  (NOTE: with output:standalone, prod run is
                         #   `node .next/standalone/server.js`)
@@ -68,11 +68,14 @@ Tiers:
    tier that actually works in production today.
 2. **Built-in plugins** — `src/widgets/plugins/<name>/{index.ts,component.tsx,types.ts}`.
    Unified format. Examples: `adguard`, `sonarr`, `uptimekuma`.
-   - Definitions loaded by `src/widgets/plugin-loader.ts` (`getPluginDefinitions`).
+   - Definitions loaded by `src/widgets/plugin-loader.ts` (`loadBuiltinPlugins` via
+     `require.context("./plugins", true, /index\.(ts|js)$/, "sync")`, registered through
+     `getPluginDefinitions`).
    - Components loaded by `src/widgets/plugin-components.ts` via
      `require.context("./plugins", true, /component\.(tsx|jsx)$/, "lazy")`.
 3. **External plugins** — dropped into `HOMEPAGE_PLUGINS_DIR` at runtime, no rebuild.
-   - Definitions ALSO loaded by `plugin-loader.ts` (`loadPluginsFromDir(externalDir,...)`).
+   - Definitions ALSO loaded by `plugin-loader.ts` (`loadExternalPlugins`, via a runtime
+     `__non_webpack_require__` so webpack never tries to bundle the arbitrary path).
    - Components compiled on demand with esbuild by `src/utils/plugin-compiler.js`
      (`initExternalPlugins` is lazily invoked inside the `/api/plugins/*` routes),
      served via `src/pages/api/plugins/[name].js`, listed via
@@ -92,30 +95,31 @@ the directory name; `definition` needs an `api` string or a `proxyHandler`).
 
 Author guide: `PLUGIN_AUTHORING.md` (format, mappings, auth, testing, examples).
 
-## Known status / issues (verified 2026-05-29)
+## Plugin system status (definition-loading fixed 2026-05-29)
 
-**The plugin system (tier 2 & 3) is NOT production-ready: plugin DEFINITIONS do
-not load in a webpack build, so plugins render their UI but cannot fetch data.**
+Plugin DEFINITIONS now load in a webpack build, so built-in and external plugins
+fetch data through the proxy. Previously every plugin 403'd ("Unknown proxy service
+type") because `plugin-loader.ts` used a runtime-computed `require(pluginDir)` that
+webpack could not resolve (`Critical dependency: the request of a dependency is an
+expression`).
 
-- Root cause: `src/widgets/plugin-loader.ts:71` uses a runtime-computed
-  `require(pluginDir)`. Webpack cannot statically resolve this — `next build`
-  prints `Critical dependency: the request of a dependency is an expression`
-  with the import trace `plugin-loader.ts -> widgets.js -> api/services/proxy.js`,
-  and at runtime the require throws, so `getPluginDefinitions()` registers nothing.
-- Verified at runtime: built-in `sonarr`/`adguard`/`uptimekuma` and an external
-  `myext` plugin all return `403 {"error":"Unknown proxy service type"}` from
-  `/api/services/proxy`, while a legacy widget (`radarr`) is found. For the
-  external plugin, `/api/plugins/list` and `/api/plugins/<name>` (the esbuild
-  COMPONENT path) work — only the DEFINITION path is broken.
-- Components are fine because `plugin-components.ts` uses `require.context` (the
-  webpack-friendly idiom). The fix is to load built-in definitions the same way
-  (a `require.context` over `plugins/*/index.*`), and to load EXTERNAL definitions
-  with the real Node require (e.g. `__non_webpack_require__`) since webpack will
-  never bundle an arbitrary runtime path.
-- Plugin-system tests (`plugin-loader.test.ts`, `plugin-compiler.test.js`, and the
-  per-plugin tests) all pass under Vitest — they exercise the loader with temp
-  `.js` fixtures and import components directly, so they do NOT catch this
-  webpack-only failure. A production `next build` + proxy probe is required to see it.
+- Built-in definitions: `loadBuiltinPlugins` discovers `plugins/*/index.(ts|js)` via
+  `require.context(..., "sync")` (webpack-friendly, same idiom as `plugin-components.ts`).
+  Wrapped in try/catch so it no-ops under Vitest.
+- External definitions: `loadExternalPlugins` loads each `HOMEPAGE_PLUGINS_DIR/*/index.js`
+  with `runtimeRequire` — `__non_webpack_require__` (the real Node require) inside a webpack
+  bundle, falling back to `require` under Vitest. Webpack never bundles arbitrary paths.
+- `dev` uses `next dev --webpack` (package.json) so `require.context` behaves the same in
+  dev and prod.
+- LIMITATION (by design): definitions are cached at server start and the proxy reads a
+  static merged `widgets` object, so a NEW external plugin (or an edited `index.js`)
+  registers only after a server **restart**; its component still hot-compiles. See
+  PLUGIN_AUTHORING.md "Hot reload".
+- The unit tests do NOT cover the webpack path (`require.context` / `__non_webpack_require__`
+  don't exist under Vitest), so this class of bug is webpack-only. Verify with a production
+  `next build` + `/api/services/proxy` probe: grep `.next/server` for a plugin's unique
+  `description`, and confirm built-in `sonarr`/`adguard`/`uptimekuma` + an external plugin
+  no longer return 403 "Unknown proxy service type" (legacy `radarr` is the control).
 
 ## Repo conventions
 

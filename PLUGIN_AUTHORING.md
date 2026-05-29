@@ -109,9 +109,9 @@ Any other imports must be self-contained within your plugin folder. You cannot i
 
 ### Hot reload
 
-External plugins hot-reload when their source files change. The server watches `HOMEPAGE_PLUGINS_DIR` for filesystem events, recompiles the affected plugin with esbuild, and the browser picks up the new version within ~2 seconds (via polling). No restart, no rebuild, no page refresh -- just save the file and see the updated widget.
+An external plugin's **component** hot-reloads when its source changes. The server watches `HOMEPAGE_PLUGINS_DIR` for filesystem events, recompiles the affected component with esbuild, and the browser picks up the new version within ~2 seconds (via polling). No restart, no rebuild, no page refresh -- just save the component file and see the updated widget. New plugin folders dropped into the directory have their component detected and compiled automatically too.
 
-New plugin folders added to the directory are also detected and compiled automatically.
+**The proxy definition (`index.js`) is the exception.** Definitions are loaded once at server startup, so adding a new plugin -- or editing an existing plugin's `index.js` -- only takes effect after a server **restart**. Until you restart, a newly added plugin's UI renders but its data fetches return `403 "Unknown proxy service type"` because the proxy has no definition for it. Component edits never need a restart; definition edits do.
 
 ### Limitations of external plugins
 
@@ -505,7 +505,8 @@ Read these to understand the pattern before writing your own.
 | ------------------------------------------------------ | --------------- | -------------------- |
 | Add a built-in plugin to `src/widgets/plugins/`        | Yes             | --                   |
 | Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No                   |
-| Add an external plugin to `HOMEPAGE_PLUGINS_DIR`       | No              | No (auto-detected)   |
-| Change an external plugin's files                      | No              | No (auto-recompiled) |
+| Add an external plugin to `HOMEPAGE_PLUGINS_DIR`       | No              | Yes (definition registers on restart; component auto-compiles) |
+| Change an external plugin's component                  | No              | No (auto-recompiled) |
+| Change an external plugin's definition (`index.js`)    | No              | Yes                  |
 | Change `services.yaml`                                 | No              | No                   |
 | Use `customapi` widget                                 | No              | No                   |
