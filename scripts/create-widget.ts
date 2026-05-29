@@ -1,3 +1,4 @@
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 
@@ -113,6 +114,9 @@ export default function Component({ service }: { service: { widget: Record<strin
 `,
 );
 
+// Register the new built-in plugin in the static barrel (src/widgets/plugins-generated.ts).
+execSync("node scripts/generate-plugin-barrel.mjs", { cwd: path.join(__dirname, ".."), stdio: "inherit" });
+
 console.log(`Created plugin scaffold at ${pluginDir}/`);
 console.log("");
 console.log("Files created:");
@@ -126,4 +130,4 @@ console.log("  2. Define your endpoint mappings");
 console.log("  3. Add response type definitions in types.ts");
 console.log("  4. Implement the component UI in component.tsx");
 console.log(`  5. Add translation keys in public/locales/en/${name}.json`);
-console.log("  6. Run `pnpm dev` -- the plugin will be auto-discovered");
+console.log("  6. Run `pnpm dev` -- the plugin is registered in src/widgets/plugins-generated.ts");

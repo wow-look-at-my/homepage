@@ -47,7 +47,7 @@ describe("plugin-loader", () => {
     cleanFixtures();
     clearPluginCache();
     process.env.HOMEPAGE_PLUGINS_DIR = path.join(FIXTURES_DIR, "nonexistent");
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result).toEqual({});
   });
 
@@ -66,7 +66,7 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result.testwidget).toBeDefined();
     expect(result.testwidget.api).toBe("{url}/api/{endpoint}");
   });
@@ -82,7 +82,7 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result.noid).toBeUndefined();
   });
 
@@ -98,7 +98,7 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result.mismatch).toBeUndefined();
     expect(result.wrongname).toBeUndefined();
   });
@@ -114,14 +114,14 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result.nodef).toBeUndefined();
   });
 
   it("skips plugin that throws on require", () => {
     writePlugin("throws", `throw new Error("plugin init failure");`);
 
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result.throws).toBeUndefined();
   });
 
@@ -137,7 +137,7 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions(new Set(["legacy"]));
+    const result = getPluginDefinitions([], new Set(["legacy"]));
     expect(result.legacy).toBeUndefined();
   });
 
@@ -154,7 +154,7 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions();
+    const result = getPluginDefinitions([]);
     expect(result.aliased).toBeDefined();
     expect(result.alias1).toBe(result.aliased);
     expect(result.alias2).toBe(result.aliased);
@@ -173,8 +173,32 @@ describe("plugin-loader", () => {
       };`,
     );
 
-    const result = getPluginDefinitions(new Set(["existing"]));
+    const result = getPluginDefinitions([], new Set(["existing"]));
     expect(result.hasconflict).toBeDefined();
     expect(result.existing).toBeUndefined();
+  });
+
+  it("registers built-in plugins passed from the barrel", () => {
+    const result = getPluginDefinitions([
+      {
+        dir: "builtinwidget",
+        widget: { id: "builtinwidget", name: "Builtin", definition: { api: "{url}/{endpoint}" } },
+      },
+    ]);
+    expect(result.builtinwidget).toBeDefined();
+    expect(result.builtinwidget.api).toBe("{url}/{endpoint}");
+  });
+
+  it("skips a built-in entry whose id does not match its dir", () => {
+    const result = getPluginDefinitions([
+      { dir: "expected", widget: { id: "different", name: "X", definition: { api: "{url}/{endpoint}" } } },
+    ]);
+    expect(result.expected).toBeUndefined();
+    expect(result.different).toBeUndefined();
+  });
+
+  it("skips an undefined built-in entry (import-cycle artifact) without throwing", () => {
+    const result = getPluginDefinitions([{ dir: "missing", widget: undefined }]);
+    expect(result.missing).toBeUndefined();
   });
 });

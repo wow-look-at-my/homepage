@@ -1,7 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 
+import { createRequire } from "node:module";
+
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
+
+// webpack provides __non_webpack_require__ in the production/dev bundle (the real Node
+// require, used by plugin-loader to load external plugins). Vitest doesn't, so supply it
+// here as a native require for tests that exercise external plugin loading.
+globalThis.__non_webpack_require__ = createRequire(import.meta.url);
 
 afterEach(() => {
   // Node-environment tests shouldn't require jsdom; guard cleanup accordingly.
