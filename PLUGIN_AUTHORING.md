@@ -136,7 +136,14 @@ pnpm create-widget my-service
 pnpm dev
 ```
 
-The plugin is live immediately. Hot reload works. No core files touched. Full access to all internal modules.
+The plugin is live immediately and has full access to all internal modules.
+
+Built-in plugins are registered through a generated static barrel,
+`src/widgets/plugins-generated.ts` (built-in definitions must be imported statically, not via
+`require.context`, so they resolve synchronously). `pnpm create-widget` regenerates the barrel
+for you, and so do the `predev`/`prebuild` scripts. If you add a plugin folder by hand (without
+`create-widget`), regenerate it with `node scripts/generate-plugin-barrel.mjs`. The barrel is a
+committed file -- don't edit it by hand.
 
 ## No Code Option -- `customapi`
 
