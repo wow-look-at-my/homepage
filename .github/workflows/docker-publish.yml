@@ -75,6 +75,9 @@ jobs:
           name: nextjs-build
           path: .next/
           retention-days: 1
+          # .next/ is a hidden dir; upload-artifact@v4 excludes hidden files by
+          # default, which uploaded nothing and broke the Docker Build & Push job.
+          include-hidden-files: true
 
   publish:
     name: Docker Build & Push
