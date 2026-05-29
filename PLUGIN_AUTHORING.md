@@ -508,12 +508,12 @@ Read these to understand the pattern before writing your own.
 
 ## What Requires What
 
-| Action                                                 | Rebuild?        | Restart?             |
-| ------------------------------------------------------ | --------------- | -------------------- |
-| Add a built-in plugin to `src/widgets/plugins/`        | Yes             | --                   |
-| Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No                   |
+| Action                                                 | Rebuild?        | Restart?                                                       |
+| ------------------------------------------------------ | --------------- | -------------------------------------------------------------- |
+| Add a built-in plugin to `src/widgets/plugins/`        | Yes             | --                                                             |
+| Change a built-in plugin's component during `pnpm dev` | No (hot reload) | No                                                             |
 | Add an external plugin to `HOMEPAGE_PLUGINS_DIR`       | No              | Yes (definition registers on restart; component auto-compiles) |
-| Change an external plugin's component                  | No              | No (auto-recompiled) |
-| Change an external plugin's definition (`index.js`)    | No              | Yes                  |
-| Change `services.yaml`                                 | No              | No                   |
-| Use `customapi` widget                                 | No              | No                   |
+| Change an external plugin's component                  | No              | No (auto-recompiled)                                           |
+| Change an external plugin's definition (`index.js`)    | No              | Yes                                                            |
+| Change `services.yaml`                                 | No              | No                                                             |
+| Use `customapi` widget                                 | No              | No                                                             |
